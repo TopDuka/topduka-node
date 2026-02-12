@@ -1,10 +1,18 @@
 {
-  "name": "topduka-node",
-  "version": "0.1.0-beta.0",
+  "name": "@valebytes/topduka-node",
+  "version": "0.1.0-beta.4",
   "description": "TopDuka Node.js SDK for storefront APIs",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "homepage": "https://github.com/TopDuka/topduka-node#readme",
+  "bugs": {
+    "url": "https://github.com/TopDuka/topduka-node/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TopDuka/topduka-node.git"
+  },
+  "license": "MIT",
+  "author": "ValeBytes",
+  "type": "commonjs",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,6 +20,8 @@
       "require": "./dist/index.js"
     }
   },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
@@ -26,5 +36,5 @@
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
   },
-  "license": "MIT"
+  "module": "dist/index.mjs"
 }

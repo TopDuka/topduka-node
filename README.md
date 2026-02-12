@@ -1,12 +1,12 @@
 <div align="center">
 
-# topduka-node
+# @valebytes/topduka-node
 
 **The official Node.js SDK for the TopDuka Storefront API**
 
 Build custom storefronts, integrate product catalogs, manage carts, and process payments — all with a clean, type-safe developer experience.
 
-[![npm version](https://img.shields.io/npm/v/topduka-node)](https://www.npmjs.com/package/topduka-node)
+[![npm version](https://img.shields.io/npm/v/@valebytes/topduka-node)](https://www.npmjs.com/package/@valebytes/topduka-node)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
 
 </div>
@@ -22,13 +22,13 @@ TopDuka is a modern e-commerce platform that gives merchants everything they nee
 ### Installation
 
 ```bash
-npm install topduka-node
+npm install @valebytes/topduka-node
 ```
 
 ### Initialize the Client
 
 ```ts
-import { createClient } from "topduka-node";
+import { createClient } from "@valebytes/topduka-node";
 
 const duka = createClient({
   baseURL: "https://api.topduka.com",
@@ -67,13 +67,15 @@ const banners = await duka.banners.list({ status: "active" });
 
 ### Cart
 
-Create sessions, update line items, and complete checkout.
+Create sessions, update line items, and complete checkout. The SDK manages `session_id` internally via `localStorage` — no need to pass it around.
 
 ```ts
-const { session_id } = await duka.cart.create();
-const cart = await duka.cart.get(session_id);
-await duka.cart.updateProduct({ session_id, product_id: "...", quantity: 2 });
-await duka.cart.complete({ session_id, payment_method: "paystack", ... });
+await duka.cart.create();
+const cart = await duka.cart.get();
+await duka.cart.updateProduct({ product_id: "...", quantity: 2 });
+await duka.cart.complete({ payment_method: "paystack", ... });
+await duka.cart.clear();   // remove all items
+await duka.cart.delete();  // destroy the session
 ```
 
 ### Orders
@@ -97,15 +99,24 @@ const verification = await duka.payments.verify({ reference: "..." });
 
 ### Store Config
 
-Retrieve store-level settings like currency, name, and theme preferences.
+Retrieve store-level settings like currency and tax preferences.
 
 ```ts
 const config = await duka.config.get();
 ```
 
+### Store Info
+
+Fetch public store details — name, email, phone, address, and logo.
+
+```ts
+const store = await duka.store.get();
+console.log(store.name, store.logo);
+```
+
 ## Framework Agnostic
 
-`topduka-node` is a plain async client with zero framework dependencies. Plug it into whatever data-fetching layer you prefer:
+`@valebytes/topduka-node` is a plain async client with zero framework dependencies. Plug it into whatever data-fetching layer you prefer:
 
 ```ts
 // React Query

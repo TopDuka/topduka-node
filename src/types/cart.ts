@@ -25,13 +25,11 @@ export interface CartCreateParams {
 }
 
 export interface CartAddProductParams {
-  session_id: string;
   product_id: string;
   quantity: number;
 }
 
 export interface CartCompleteParams {
-  session_id: string;
   payment_method: PaymentMethod;
   full_name: string;
   email: string;

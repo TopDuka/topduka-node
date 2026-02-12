@@ -2,8 +2,8 @@ import axios, { AxiosInstance } from "axios";
 import {
   Product, Category, ProductGetParams, CategoryGetParams, DiscountedProductsParams,
   Banner, BannerGetParams,
-  Cart, CartCreateParams, CartAddProductParams, CartCompleteParams,
-  StoreConfig,
+  Cart, CartCreateParams, CartCompleteParams,
+  StoreConfig, StoreInfo,
   Order,
   PaystackConfig, PaystackInlineOptions, InitializePaymentParams, InitializePaymentResponse,
   VerifyPaymentParams, VerifyPaymentResponse,
@@ -23,18 +23,25 @@ export interface TopDukaClient {
   };
   categories: {
     list(params?: CategoryGetParams): Promise<Category[]>;
+    getProducts(categoryId: string): Promise<Product[]>;
   };
   banners: {
     list(params?: BannerGetParams): Promise<Banner[]>;
   };
   cart: {
-    get(sessionId: string): Promise<Cart>;
+    get(): Promise<Cart | null>;
     create(params?: CartCreateParams): Promise<{ session_id: string }>;
-    updateProduct(params: CartAddProductParams): Promise<unknown>;
-    complete(params: CartCompleteParams): Promise<unknown>;
+    updateProduct(params: { product_id: string; quantity: number }): Promise<unknown>;
+    complete(params: Omit<CartCompleteParams, "session_id">): Promise<unknown>;
+    delete(): Promise<void>;
+    clear(): Promise<void>;
+    getSessionId(): string | null;
   };
   config: {
     get(): Promise<StoreConfig>;
+  };
+  store: {
+    get(): Promise<StoreInfo>;
   };
   orders: {
     list(skip?: number): Promise<Order[]>;
@@ -71,6 +78,23 @@ function loadPaystackScript(): Promise<void> {
   });
 }
 
+const CART_SESSION_KEY = "topduka_cart_session";
+
+function getStoredSession(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(CART_SESSION_KEY);
+}
+
+function setStoredSession(sessionId: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CART_SESSION_KEY, sessionId);
+}
+
+function clearStoredSession(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(CART_SESSION_KEY);
+}
+
 function buildQuery(entries: Record<string, string | number | undefined>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(entries)) {
@@ -99,7 +123,10 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
   return {
     products: {
       async list(params?: ProductGetParams) {
-        const qs = buildQuery({ id: params?.id, sku: params?.sku, slug: params?.slug, search_term: params?.search_term, status: params?.status, barcode: params?.barcode, skip: params?.skip });
+        const qs = buildQuery({
+          id: params?.id, sku: params?.sku, slug: params?.slug, search_term: params?.search_term,
+          status: params?.status, barcode: params?.barcode, skip: params?.skip, category_id: params?.category_id
+        });
         return (await http.get<Product[]>(`products${qs}`)).data;
       },
       async popular(skip?: number) {
@@ -117,6 +144,9 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
       async list(params?: CategoryGetParams) {
         return (await http.get<Category[]>(`categories${buildQuery({ slug: params?.slug, is_active: params?.is_active })}`)).data;
       },
+      async getProducts(categoryId: string) {
+        return (await http.get<Product[]>(`categories/${categoryId}/products`)).data;
+      },
     },
 
     banners: {
@@ -126,23 +156,53 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
     },
 
     cart: {
-      async get(sessionId: string) {
-        return (await http.get<Cart>(`cart?session_id=${sessionId}`)).data;
+      async get() {
+        const sid = getStoredSession();
+        if (!sid) return null;
+        return (await http.get<Cart>(`cart?session_id=${sid}`)).data;
       },
       async create(params?: CartCreateParams) {
-        return (await http.post<{ session_id: string }>("cart", params || {})).data;
+        const result = (await http.post<{ session_id: string }>("cart", params || {})).data;
+        setStoredSession(result.session_id);
+        return result;
       },
-      async updateProduct(params: CartAddProductParams) {
-        return (await http.post("cart/update", params)).data;
+      async updateProduct(params: { product_id: string; quantity: number }) {
+        const sid = getStoredSession();
+        if (!sid) throw new Error("No cart session. Call cart.create() first.");
+        return (await http.post("cart/update", { session_id: sid, product_id: params.product_id, quantity: params.quantity })).data;
       },
-      async complete(params: CartCompleteParams) {
-        return (await http.post("cart/complete", params)).data;
+      async complete(params: Omit<CartCompleteParams, "session_id">) {
+        const sid = getStoredSession();
+        if (!sid) throw new Error("No cart session. Call cart.create() first.");
+        const result = (await http.post("cart/complete", { ...params, session_id: sid })).data;
+        clearStoredSession();
+        return result;
+      },
+      async delete() {
+        const sid = getStoredSession();
+        if (!sid) return;
+        await http.delete(`cart?session_id=${sid}`);
+        clearStoredSession();
+      },
+      async clear() {
+        const sid = getStoredSession();
+        if (!sid) return;
+        await http.post("cart/clear", { session_id: sid });
+      },
+      getSessionId() {
+        return getStoredSession();
       },
     },
 
     config: {
       async get() {
         return (await http.get<StoreConfig>("config")).data;
+      },
+    },
+
+    store: {
+      async get() {
+        return (await http.get<StoreInfo>("store-info")).data;
       },
     },
 

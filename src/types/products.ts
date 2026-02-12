@@ -35,6 +35,7 @@ export interface ProductGetParams {
   status?: string;
   barcode?: string;
   skip?: number;
+  category_id?: string;
 }
 
 export interface CategoryGetParams {

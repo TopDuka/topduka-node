@@ -4,10 +4,16 @@ export interface StoreConfig {
   vat_rate: number;
   prices_include_tax: boolean;
   currency_code: string;
-  store_name: string;
-  store_email: string;
-  store_phone: string;
-  store_address: string;
-  store_logo: string;
   created_at: string;
+}
+
+export interface StoreInfo {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  logo: string;
+  created_at: string;
+  updated_at: string;
 }
