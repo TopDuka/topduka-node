@@ -31,10 +31,11 @@ npm install @valebytes/topduka-node
 import { createClient } from "@valebytes/topduka-node";
 
 const duka = createClient({
-  baseURL: "https://api.topduka.com",
-  apiKey: "your-api-key",
+  apiKey: process.env.NEXT_PUBLIC_API_KEY!,
 });
 ```
+
+> `baseURL` defaults to `https://api.topduka.com`. Override it only for local development or custom deployments.
 
 ## API Reference
 
@@ -107,11 +108,12 @@ const config = await duka.config.get();
 
 ### Store Info
 
-Fetch public store details — name, email, phone, address, and logo.
+Fetch public store details — name, email, phone, address, logo, country code, and social links.
 
 ```ts
 const store = await duka.store.get();
-console.log(store.name, store.logo);
+console.log(store.name, store.logo, store.country_code);
+console.log(store.twitter, store.facebook, store.instagram, store.whatsapp);
 ```
 
 ## Framework Agnostic

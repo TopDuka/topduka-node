@@ -14,6 +14,11 @@ export interface StoreInfo {
   phone: string;
   address: string;
   logo: string;
+  country_code: string;
+  twitter: string;
+  facebook: string;
+  instagram: string;
+  whatsapp: string;
   created_at: string;
   updated_at: string;
 }

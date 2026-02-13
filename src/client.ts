@@ -10,8 +10,8 @@ import {
 } from "./types";
 
 export interface TopDukaClientOptions {
-  baseURL: string;
-  apiKey?: string;
+  baseURL?: string;
+  apiKey: string;
 }
 
 export interface TopDukaClient {
@@ -46,6 +46,7 @@ export interface TopDukaClient {
   orders: {
     list(skip?: number): Promise<Order[]>;
     get(orderId: string): Promise<Order>;
+    track(orderNumber: number): Promise<Order>;
   };
   payments: {
     getConfig(): Promise<PaystackConfig>;
@@ -107,18 +108,17 @@ function buildQuery(entries: Record<string, string | number | undefined>): strin
 }
 
 export function createClient(options: TopDukaClientOptions): TopDukaClient {
-  const baseURL = options.baseURL.endsWith("/pb/v1")
-    ? options.baseURL
-    : `${options.baseURL.replace(/\/+$/, "")}/pb/v1`;
+  const raw = options.baseURL || "https://api.topduka.com";
+  const baseURL = raw.endsWith("/pb/v1")
+    ? raw
+    : `${raw.replace(/\/+$/, "")}/pb/v1`;
 
   const http: AxiosInstance = axios.create({ baseURL });
 
-  if (options.apiKey) {
-    http.interceptors.request.use((config) => {
-      config.headers["x-api-key"] = options.apiKey;
-      return config;
-    });
-  }
+  http.interceptors.request.use((config) => {
+    config.headers["x-api-key"] = options.apiKey;
+    return config;
+  });
 
   return {
     products: {
@@ -212,6 +212,9 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
       },
       async get(orderId: string) {
         return (await http.get<Order>(`orders/${orderId}`)).data;
+      },
+      async track(orderNumber: number) {
+        return (await http.get<Order>(`orders/track${buildQuery({ order_number: orderNumber })}`)).data;
       },
     },
 
