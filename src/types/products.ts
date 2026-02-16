@@ -23,6 +23,8 @@ export interface Category {
   slug?: string;
   description?: string;
   is_active: boolean;
+  placeholder_type: string;
+  placeholder_value: string;
   created_at: string;
   updated_at: string;
 }
