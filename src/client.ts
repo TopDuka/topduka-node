@@ -7,6 +7,7 @@ import {
   Order,
   PaystackConfig, PaystackInlineOptions, InitializePaymentParams, InitializePaymentResponse,
   VerifyPaymentParams, VerifyPaymentResponse,
+  Tag, TagGetParams,
 } from "./types";
 
 export interface TopDukaClientOptions {
@@ -24,6 +25,10 @@ export interface TopDukaClient {
   categories: {
     list(params?: CategoryGetParams): Promise<Category[]>;
     getProducts(categoryId: string): Promise<Product[]>;
+  };
+  tags: {
+    list(params?: TagGetParams): Promise<Tag[]>;
+    getProducts(tagId: string): Promise<Product[]>;
   };
   banners: {
     list(params?: BannerGetParams): Promise<Banner[]>;
@@ -125,7 +130,8 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
       async list(params?: ProductGetParams) {
         const qs = buildQuery({
           id: params?.id, sku: params?.sku, slug: params?.slug, search_term: params?.search_term,
-          status: params?.status, barcode: params?.barcode, skip: params?.skip, category_id: params?.category_id
+          status: params?.status, barcode: params?.barcode, skip: params?.skip,
+          category_id: params?.category_id, tag_id: params?.tag_id
         });
         return (await http.get<Product[]>(`products${qs}`)).data;
       },
@@ -146,6 +152,15 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
       },
       async getProducts(categoryId: string) {
         return (await http.get<Product[]>(`categories/${categoryId}/products`)).data;
+      },
+    },
+
+    tags: {
+      async list(params?: TagGetParams) {
+        return (await http.get<Tag[]>(`tags${buildQuery({ search_term: params?.search_term })}`)).data;
+      },
+      async getProducts(tagId: string) {
+        return (await http.get<Product[]>(`tags/${tagId}/products`)).data;
       },
     },
 

@@ -12,6 +12,9 @@ export interface Product {
   rating?: number;
   images?: string[];
   categories?: string[];
+  category_ids?: string[];
+  tags?: string[];
+  tag_ids?: string[];
   stock?: number;
   created_at: string;
   updated_at: string;
@@ -38,6 +41,7 @@ export interface ProductGetParams {
   barcode?: string;
   skip?: number;
   category_id?: string;
+  tag_id?: string;
 }
 
 export interface CategoryGetParams {
