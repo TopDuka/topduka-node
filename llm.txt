@@ -1,0 +1,155 @@
+# @valebytes/topduka-node - Agent Reference
+
+The official Node.js SDK for the TopDuka Storefront API.
+
+## Installation
+
+```bash
+npm install @valebytes/topduka-node
+```
+
+## Quick Start
+
+```ts
+import { createClient, PaymentMethod } from "@valebytes/topduka-node";
+
+const duka = createClient({
+  apiKey: process.env.NEXT_PUBLIC_API_KEY!,
+  // baseURL: "https://api.topduka.com" // optional, defaults to this
+});
+```
+
+## API Methods
+
+### duka.products
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `list` | `ProductGetParams` | `Product[]` | List/filter products |
+| `popular` | `skip?: number` | `Product[]` | Trending products |
+| `discounted` | `DiscountedProductsParams` | `Product[]` | Products on sale |
+| `bestSelling` | `skip?: number` | `Product[]` | Top-selling products |
+
+**ProductGetParams:** `id`, `sku`, `slug`, `search_term`, `status`, `barcode`, `skip`, `category_id`, `tag_id`
+
+**DiscountedProductsParams:** `min_discount`, `max_discount`, `skip`
+
+**Product interface:** `id`, `name`, `description`, `short_description`, `sku`, `barcode`, `slug`, `price`, `sales_price`, `status`, `rating`, `images[]`, `categories[]`, `category_ids[]`, `tags[]`, `tag_ids[]`, `stock`, `created_at`, `updated_at`
+
+### duka.categories
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `list` | `CategoryGetParams` | `Category[]` | All categories |
+| `getProducts` | `categoryId: string` | `Product[]` | Products in category |
+
+**CategoryGetParams:** `slug`, `is_active`
+
+**Category interface:** `id`, `name`, `slug`, `description`, `is_active`, `placeholder_type`, `placeholder_value`, `created_at`, `updated_at`
+
+### duka.tags
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `list` | `TagGetParams` | `Tag[]` | All tags |
+| `getProducts` | `tagId: string` | `Product[]` | Products with tag |
+
+**TagGetParams:** `search_term`
+
+**Tag interface:** `id`, `name`, `slug`, `store_id`, `created_at`, `updated_at`
+
+### duka.banners
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `list` | `BannerGetParams` | `Banner[]` | Promotional banners |
+
+**BannerGetParams:** `status`, `type`, `skip`
+
+**Banner interface:** `id`, `title`, `description`, `image_url`, `link_url`, `type`, `status`, `sort_order`, `created_at`, `updated_at`
+
+### duka.cart
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `create` | `CartCreateParams?` | `{ session_id }` | Initialize cart |
+| `get` | - | `Cart \| null` | Current cart |
+| `updateProduct` | `{ product_id, quantity }` | `unknown` | Add/update item |
+| `complete` | `CartCompleteParams` | `unknown` | Checkout |
+| `clear` | - | `void` | Remove all items |
+| `delete` | - | `void` | Destroy session |
+| `getSessionId` | - | `string \| null` | Current session ID |
+
+**CartCreateParams:** `cart_id?`, `customer_id?`
+
+**CartCompleteParams:** `payment_method` (PaymentMethod enum), `full_name`, `email`, `phone_number`, `address_line1`, `address_line2?`, `city`, `state_province`, `postal_code`, `country`
+
+**Cart interface:** `id`, `session_id`, `items[]`, `total?`, `item_count?`
+
+**CartItem interface:** `id`, `product_id`, `product_name?`, `product_image?`, `price?`, `sales_price?`, `quantity`, `sku?`
+
+### duka.orders
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `list` | `skip?: number` | `Order[]` | Customer orders |
+| `get` | `orderId: string` | `Order` | Order by ID |
+| `track` | `orderNumber: number` | `Order` | Track by number |
+
+**Order interface:** `id`, `order_number?`, `status`, `payment_status?`, `payment_method?`, `subtotal`, `discount_amount?`, `tax_amount?`, `total`, `currency?`, `full_name?`, `email?`, `phone_number?`, `address_line1?`, `address_line2?`, `city?`, `state_province?`, `postal_code?`, `country?`, `items[]?`, `created_at`, `updated_at`
+
+**OrderItem interface:** `id`, `product_id`, `product_name?`, `product_image?`, `quantity`, `unit_price`, `total_price`, `sku?`
+
+### duka.payments
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `getConfig` | - | `PaystackConfig` | Payment config |
+| `initialize` | `InitializePaymentParams` | `InitializePaymentResponse` | Server-side init |
+| `verify` | `VerifyPaymentParams` | `VerifyPaymentResponse` | Verify payment |
+| `payInline` | `PaystackInlineOptions` | `void` | Client popup |
+
+**InitializePaymentParams:** `email`, `amount`, `reference?`, `callback_url?`
+
+**InitializePaymentResponse:** `authorization_url`, `access_code`, `reference`
+
+**VerifyPaymentParams:** `reference`
+
+**VerifyPaymentResponse:** `status`, `reference`, `amount`, `currency`, `channel`, `paid_at`
+
+**PaystackInlineOptions:** `email`, `amount`, `currency?` (default: "NGN"), `reference?`, `onSuccess`, `onClose?`
+
+**PaystackConfig:** `public_key`
+
+### duka.config
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `get` | - | `StoreConfig` | Store settings |
+
+**StoreConfig:** `id`, `vat_enabled`, `vat_rate`, `prices_include_tax`, `currency_code`, `created_at`
+
+### duka.store
+
+| Method | Params | Returns | Description |
+|--------|--------|---------|-------------|
+| `get` | - | `StoreInfo` | Public store details |
+
+**StoreInfo:** `id`, `name`, `email`, `phone`, `address`, `logo`, `country_code`, `twitter`, `facebook`, `instagram`, `whatsapp`, `created_at`, `updated_at`
+
+## Enums
+
+```ts
+enum PaymentMethod {
+  Cash = "cash",
+  Paystack = "paystack",
+}
+```
+
+## Key Behaviors
+
+- `baseURL` defaults to `https://api.topduka.com/pb/v1` if not provided
+- API key is sent via `x-api-key` header automatically
+- Cart session_id is managed automatically via localStorage
+- `payInline()` requires browser environment (loads Paystack script dynamically)
+- All list methods support pagination via `skip` parameter
