@@ -1,6 +1,6 @@
 {
   "name": "@valebytes/topduka-node",
-  "version": "0.1.0-beta.6",
+  "version": "0.1.0-beta.8",
   "description": "TopDuka Node.js SDK for storefront APIs",
   "homepage": "https://github.com/TopDuka/topduka-node#readme",
   "bugs": {

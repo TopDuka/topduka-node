@@ -33,6 +33,7 @@ import { createClient } from "@valebytes/topduka-node";
 const duka = createClient({
   apiKey: process.env.NEXT_PUBLIC_API_KEY!,
   // baseURL defaults to "https://api.topduka.com"
+  // SDK targets "/api/v1" automatically
   // baseURL: "https://api.topduka.com" // optional
 });
 ```

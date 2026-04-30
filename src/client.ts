@@ -8,6 +8,7 @@ import {
   PaystackConfig, PaystackInlineOptions, InitializePaymentParams, InitializePaymentResponse,
   VerifyPaymentParams, VerifyPaymentResponse,
   Tag, TagGetParams,
+  PesapalConfig, PesapalOrderParams, PesapalOrderResponse, PesapalTransactionStatus, PesapalVerifyParams,
 } from "./types";
 
 export interface TopDukaClientOptions {
@@ -58,6 +59,9 @@ export interface TopDukaClient {
     initialize(params: InitializePaymentParams): Promise<InitializePaymentResponse>;
     verify(params: VerifyPaymentParams): Promise<VerifyPaymentResponse>;
     payInline(options: PaystackInlineOptions): Promise<void>;
+    getPesapalConfig(): Promise<PesapalConfig>;
+    createPesapalOrder(params: PesapalOrderParams): Promise<PesapalOrderResponse>;
+    verifyPesapalTransaction(params: PesapalVerifyParams): Promise<PesapalTransactionStatus>;
   };
 }
 
@@ -114,9 +118,11 @@ function buildQuery(entries: Record<string, string | number | undefined>): strin
 
 export function createClient(options: TopDukaClientOptions): TopDukaClient {
   const raw = options.baseURL || "https://api.topduka.com";
-  const baseURL = raw.endsWith("/pb/v1")
-    ? raw
-    : `${raw.replace(/\/+$/, "")}/pb/v1`;
+  const normalized = raw.replace(/\/+$/, "");
+  const baseURL =
+    normalized.endsWith("/api/v1") || normalized.endsWith("/pb/v1")
+      ? normalized.replace(/\/pb\/v1$/, "/api/v1")
+      : `${normalized}/api/v1`;
 
   const http: AxiosInstance = axios.create({ baseURL });
 
@@ -268,6 +274,17 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
           },
         });
         handler.openIframe();
+      },
+      async getPesapalConfig() {
+        return (await http.get<PesapalConfig>("payments/pesapal/config")).data;
+      },
+      async createPesapalOrder(params: PesapalOrderParams) {
+        return (await http.post<PesapalOrderResponse>("payments/pesapal/order", params)).data;
+      },
+      async verifyPesapalTransaction(params: PesapalVerifyParams) {
+        return (await http.get<PesapalTransactionStatus>(
+          `payments/pesapal/status?order_tracking_id=${params.order_tracking_id}`
+        )).data;
       },
     },
   };
