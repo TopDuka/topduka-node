@@ -5,6 +5,14 @@ export interface CartItem {
   product_id: string;
   product_name?: string;
   product_image?: string;
+  product_kind?: string;
+  booking_slot_id?: string | null;
+  ticket_type_id?: string | null;
+  bookable_id?: string | null;
+  bookable_title?: string | null;
+  slot_starts_at?: string | null;
+  slot_ends_at?: string | null;
+  ticket_type_name?: string | null;
   price?: number;
   sales_price?: number;
   quantity: number;
@@ -27,6 +35,8 @@ export interface CartCreateParams {
 export interface CartAddProductParams {
   product_id: string;
   quantity: number;
+  booking_slot_id?: string | null;
+  ticket_type_id?: string | null;
 }
 
 export interface CartCompleteParams {

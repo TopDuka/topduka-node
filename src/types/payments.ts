@@ -1,5 +1,6 @@
 export enum PaymentMethod {
   Cash = "cash",
+  Mpesa = "mpesa",
   Paystack = "paystack",
   Pesapal = "pesapal",
   Flutterwave = "flutterwave",

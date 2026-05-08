@@ -8,6 +8,7 @@ export interface Product {
   slug?: string;
   price: number;
   sales_price?: number;
+  kind?: "physical" | "ticket" | "service" | "rental" | "digital";
   status: string;
   rating?: number;
   images?: string[];

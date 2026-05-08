@@ -9,6 +9,10 @@ import {
   VerifyPaymentParams, VerifyPaymentResponse,
   Tag, TagGetParams,
   PesapalConfig, PesapalOrderParams, PesapalOrderResponse, PesapalTransactionStatus, PesapalVerifyParams,
+  BookingCheckoutApi, BookingCheckoutInitOptions, BookingCheckoutSessionResponse, BookingEvent, BookingEventDetails, BookingEventListParams, BookingSlot, BookingTicketCartParams, CreateBookingCheckoutSessionParams, Ticket,
+  CreateCheckoutSessionParams, CheckoutSession, StartMpesaPaymentParams, StartMpesaPaymentResponse, CompleteCashSessionResponse,
+  InitializePaystackCheckoutParams, InitializePaystackCheckoutResponse, VerifyPaystackCheckoutResponse,
+  CheckoutInitOptions,
 } from "./types";
 
 export interface TopDukaClientOptions {
@@ -34,14 +38,34 @@ export interface TopDukaClient {
   banners: {
     list(params?: BannerGetParams): Promise<Banner[]>;
   };
+  bookings: {
+    listEvents(params?: number | BookingEventListParams): Promise<BookingEvent[]>;
+    getEvent(idOrSlug: string): Promise<BookingEventDetails>;
+    getSlots(idOrSlug: string): Promise<BookingSlot[]>;
+    getTicket(token: string): Promise<Ticket>;
+    addTicketToCart(params: BookingTicketCartParams): Promise<unknown>;
+  };
+  bookingCheckout: BookingCheckoutApi;
+  tickets: {
+    get(token: string): Promise<Ticket>;
+  };
   cart: {
     get(): Promise<Cart | null>;
     create(params?: CartCreateParams): Promise<{ session_id: string }>;
-    updateProduct(params: { product_id: string; quantity: number }): Promise<unknown>;
+    updateProduct(params: { product_id: string; quantity: number; booking_slot_id?: string | null; ticket_type_id?: string | null }): Promise<unknown>;
     complete(params: Omit<CartCompleteParams, "session_id">): Promise<unknown>;
     delete(): Promise<void>;
     clear(): Promise<void>;
     getSessionId(): string | null;
+  };
+  checkout: {
+    createSession(params: CreateCheckoutSessionParams): Promise<CheckoutSession>;
+    getSession(id: string): Promise<CheckoutSession>;
+    startMpesaPayment(params: StartMpesaPaymentParams): Promise<StartMpesaPaymentResponse>;
+    initializePaystackPayment(params: InitializePaystackCheckoutParams): Promise<InitializePaystackCheckoutResponse>;
+    verifyPaystackPayment(checkoutSessionId: string): Promise<VerifyPaystackCheckoutResponse>;
+    completeCashSession(id: string): Promise<CompleteCashSessionResponse>;
+    init(options?: CheckoutInitOptions): Promise<void>;
   };
   config: {
     get(): Promise<StoreConfig>;
@@ -116,6 +140,10 @@ function buildQuery(entries: Record<string, string | number | undefined>): strin
   return qs ? `?${qs}` : "";
 }
 
+function toId(value: string | number): string {
+  return String(value);
+}
+
 export function createClient(options: TopDukaClientOptions): TopDukaClient {
   const raw = options.baseURL || "https://api.topduka.com";
   const normalized = raw.replace(/\/+$/, "");
@@ -131,7 +159,55 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
     return config;
   });
 
-  return {
+  const resolveBookingTicketProductId = async (params: BookingTicketCartParams): Promise<string> => {
+    if (params.product_id !== undefined && params.product_id !== null) {
+      return toId(params.product_id);
+    }
+    if (!params.event_id_or_slug) {
+      throw new Error("product_id or event_id_or_slug is required for booking checkout");
+    }
+
+    const event = (await http.get<BookingEventDetails>(`bookings/events/${params.event_id_or_slug}`)).data;
+    const ticketType = event.ticket_types.find((item) => toId(item.id) === toId(params.ticket_type_id));
+    if (!ticketType) {
+      throw new Error("ticket type not found for booking event");
+    }
+    return toId(ticketType.product_id);
+  };
+
+  const addBookingTicketToCartSession = async (
+    sessionId: string | number,
+    params: BookingTicketCartParams,
+  ): Promise<unknown> => {
+    const productId = await resolveBookingTicketProductId(params);
+    return (await http.post("cart/update", {
+      session_id: sessionId,
+      product_id: productId,
+      quantity: params.quantity ?? 1,
+      booking_slot_id: params.booking_slot_id,
+      ticket_type_id: params.ticket_type_id,
+    })).data;
+  };
+
+  const createBookingCheckoutSession = async (
+    params: CreateBookingCheckoutSessionParams,
+  ): Promise<BookingCheckoutSessionResponse> => {
+    const cart = (await http.post<{ session_id: string | number }>("cart", {})).data;
+    await addBookingTicketToCartSession(cart.session_id, params);
+    const checkoutSession = (await http.post<CheckoutSession>("checkout/sessions", {
+      session_id: cart.session_id,
+      payment_method: params.payment_method,
+      customer: params.customer,
+      shipping: params.shipping,
+    })).data;
+
+    return {
+      cart_session_id: cart.session_id,
+      checkout_session: checkoutSession,
+    };
+  };
+
+  const client: TopDukaClient = {
     products: {
       async list(params?: ProductGetParams) {
         const qs = buildQuery({
@@ -176,6 +252,78 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
       },
     },
 
+    bookings: {
+      async listEvents(params?: number | BookingEventListParams) {
+        const skip = typeof params === "number" ? params : params?.skip;
+        return (await http.get<BookingEvent[]>(`bookings/events${buildQuery({ skip })}`)).data;
+      },
+      async getEvent(idOrSlug: string) {
+        return (await http.get<BookingEventDetails>(`bookings/events/${idOrSlug}`)).data;
+      },
+      async getSlots(idOrSlug: string) {
+        return (await http.get<BookingSlot[]>(`bookings/events/${idOrSlug}/slots`)).data;
+      },
+      async getTicket(token: string) {
+        return (await http.get<Ticket>(`tickets/${token}`)).data;
+      },
+      async addTicketToCart(params: BookingTicketCartParams) {
+        let sid = getStoredSession();
+        if (!sid) {
+          const cart = (await http.post<{ session_id: string }>("cart", {})).data;
+          sid = cart.session_id;
+          setStoredSession(sid);
+        }
+        return addBookingTicketToCartSession(sid, params);
+      },
+    },
+
+    bookingCheckout: {
+      async createSession(params: CreateBookingCheckoutSessionParams) {
+        return createBookingCheckoutSession(params);
+      },
+      async getSession(id: string) {
+        return (await http.get<CheckoutSession>(`checkout/sessions/${id}`)).data;
+      },
+      async startMpesaPayment(params: StartMpesaPaymentParams) {
+        return (await http.post<StartMpesaPaymentResponse>(
+          `checkout/sessions/${params.checkout_session_id}/mpesa/stk-push`,
+          {
+            phone_number: params.phone_number,
+            callback_base_url: params.callback_base_url,
+          },
+        )).data;
+      },
+      async initializePaystackPayment(params: InitializePaystackCheckoutParams) {
+        return (await http.post<InitializePaystackCheckoutResponse>(
+          `checkout/sessions/${params.checkout_session_id}/paystack/initialize`,
+          { callback_url: params.callback_url },
+        )).data;
+      },
+      async verifyPaystackPayment(checkoutSessionId: string) {
+        return (await http.post<VerifyPaystackCheckoutResponse>(
+          `checkout/sessions/${checkoutSessionId}/paystack/verify`,
+          {},
+        )).data;
+      },
+      async completeCashSession(id: string) {
+        return (await http.post<CompleteCashSessionResponse>(`checkout/sessions/${id}/cash`, {})).data;
+      },
+      async init(options: BookingCheckoutInitOptions) {
+        if (typeof window === "undefined" || typeof document === "undefined") {
+          throw new Error("bookingCheckout.init requires a browser environment");
+        }
+
+        const mod = await import("./react");
+        await mod.openTopDukaBookingCheckout({ client, ...options });
+      },
+    },
+
+    tickets: {
+      async get(token: string) {
+        return (await http.get<Ticket>(`tickets/${token}`)).data;
+      },
+    },
+
     cart: {
       async get() {
         const sid = getStoredSession();
@@ -187,10 +335,10 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
         setStoredSession(result.session_id);
         return result;
       },
-      async updateProduct(params: { product_id: string; quantity: number }) {
+      async updateProduct(params: { product_id: string; quantity: number; booking_slot_id?: string | null; ticket_type_id?: string | null }) {
         const sid = getStoredSession();
         if (!sid) throw new Error("No cart session. Call cart.create() first.");
-        return (await http.post("cart/update", { session_id: sid, product_id: params.product_id, quantity: params.quantity })).data;
+        return (await http.post("cart/update", { session_id: sid, ...params })).data;
       },
       async complete(params: Omit<CartCompleteParams, "session_id">) {
         const sid = getStoredSession();
@@ -212,6 +360,55 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
       },
       getSessionId() {
         return getStoredSession();
+      },
+    },
+
+    checkout: {
+      async createSession(params: CreateCheckoutSessionParams) {
+        const sid = params.session_id || getStoredSession();
+        if (!sid) throw new Error("No cart session. Call cart.create() first.");
+        return (await http.post<CheckoutSession>("checkout/sessions", { ...params, session_id: sid })).data;
+      },
+      async getSession(id: string) {
+        return (await http.get<CheckoutSession>(`checkout/sessions/${id}`)).data;
+      },
+      async startMpesaPayment(params: StartMpesaPaymentParams) {
+        return (await http.post<StartMpesaPaymentResponse>(
+          `checkout/sessions/${params.checkout_session_id}/mpesa/stk-push`,
+          {
+            phone_number: params.phone_number,
+            callback_base_url: params.callback_base_url,
+          },
+        )).data;
+      },
+      async initializePaystackPayment(params: InitializePaystackCheckoutParams) {
+        return (await http.post<InitializePaystackCheckoutResponse>(
+          `checkout/sessions/${params.checkout_session_id}/paystack/initialize`,
+          { callback_url: params.callback_url },
+        )).data;
+      },
+      async verifyPaystackPayment(checkoutSessionId: string) {
+        const result = (await http.post<VerifyPaystackCheckoutResponse>(
+          `checkout/sessions/${checkoutSessionId}/paystack/verify`,
+          {},
+        )).data;
+        if (result.checkout_session?.status === "completed") {
+          clearStoredSession();
+        }
+        return result;
+      },
+      async completeCashSession(id: string) {
+        const result = (await http.post<CompleteCashSessionResponse>(`checkout/sessions/${id}/cash`, {})).data;
+        clearStoredSession();
+        return result;
+      },
+      async init(options?: CheckoutInitOptions) {
+        if (typeof window === "undefined" || typeof document === "undefined") {
+          throw new Error("checkout.init requires a browser environment");
+        }
+
+        const mod = await import("./react");
+        await mod.openTopDukaCheckout({ client, ...options });
       },
     },
 
@@ -288,4 +485,6 @@ export function createClient(options: TopDukaClientOptions): TopDukaClient {
       },
     },
   };
+
+  return client;
 }

@@ -624,9 +624,213 @@ try {
 }
 ```
 
-#### Complete Checkout
+#### Hosted Checkout Sessions
 
-Process payment and complete the order. This is the final step in the purchase flow.
+Hosted checkout is the recommended checkout flow for Cash, M-Pesa, and Paystack. TopDuka creates a 15-minute checkout session from the active cart, calculates the amount server-side, keeps provider secrets on the TopDuka server, and only creates the order after the payment method is confirmed. Checkout session IDs are not stored in localStorage by the SDK.
+
+**Open the Built-in Dialog:**
+
+```ts
+await duka.checkout.init({
+  onSuccess: ({ checkout_session, order }) => {
+    console.log("Checkout complete", checkout_session, order);
+  },
+  onClose: () => {
+    console.log("Checkout closed");
+  },
+});
+```
+
+`checkout.init()` opens the TopDuka dialog from inside the library and automatically uses the active cart session. Use the lower-level methods below only when building your own checkout UI.
+
+**Cash Checkout:**
+
+```ts
+import { PaymentMethod } from "@valebytes/topduka-node";
+
+const session = await duka.checkout.createSession({
+  payment_method: PaymentMethod.Cash,
+  customer: {
+    full_name: "Jane Smith",
+    email: "jane@example.com",
+    phone_number: "+254700000000",
+  },
+  shipping: {
+    address_line1: "456 Oak Avenue",
+    city: "Nairobi",
+    state_province: "Nairobi",
+    country: "Kenya",
+  },
+});
+
+const result = await duka.checkout.completeCashSession(session.id);
+console.log("Order created:", result.order);
+```
+
+**M-Pesa STK Push Checkout:**
+
+```ts
+const session = await duka.checkout.createSession({
+  payment_method: PaymentMethod.Mpesa,
+  customer: {
+    full_name: "John Doe",
+    email: "john@example.com",
+    phone_number: "+254700000000",
+  },
+  shipping: {
+    address_line1: "123 Main Street",
+    city: "Nairobi",
+    state_province: "Nairobi",
+    country: "Kenya",
+  },
+});
+
+await duka.checkout.startMpesaPayment({
+  checkout_session_id: session.id,
+  phone_number: "+254700000000",
+});
+
+// Poll until Daraja callback marks the session completed or failed.
+const current = await duka.checkout.getSession(session.id);
+```
+
+**Paystack Hosted Checkout:**
+
+```ts
+const session = await duka.checkout.createSession({
+  payment_method: PaymentMethod.Paystack,
+  customer: {
+    full_name: "John Doe",
+    email: "john@example.com",
+    phone_number: "+2348012345678",
+  },
+  shipping: {
+    address_line1: "123 Main Street",
+    city: "Lagos",
+    state_province: "Lagos",
+    country: "Nigeria",
+  },
+});
+
+const payment = await duka.checkout.initializePaystackPayment({
+  checkout_session_id: session.id,
+  callback_url: `${window.location.origin}/payment/return`,
+});
+
+window.location.href = payment.authorization_url;
+
+// On your return page, verify before showing success.
+const result = await duka.checkout.verifyPaystackPayment(session.id);
+```
+
+**React Dialog:**
+
+```tsx
+import { TopDukaCheckoutDialog } from "@valebytes/topduka-node/react";
+
+<TopDukaCheckoutDialog
+  client={duka}
+  open={checkoutOpen}
+  onOpenChange={setCheckoutOpen}
+  onSuccess={({ checkout_session, order }) => {
+    console.log("Checkout complete", checkout_session, order);
+  }}
+/>
+```
+
+**Hosted Checkout Methods:**
+
+```ts
+duka.checkout.init({ onSuccess, onClose });
+duka.checkout.createSession(params);
+duka.checkout.getSession(checkoutSessionId);
+duka.checkout.completeCashSession(checkoutSessionId);
+duka.checkout.startMpesaPayment({ checkout_session_id, phone_number });
+duka.checkout.initializePaystackPayment({ checkout_session_id, callback_url });
+duka.checkout.verifyPaystackPayment(checkoutSessionId);
+```
+
+#### Public Booking APIs
+
+Use the booking APIs to list events, load ticket types and slots, add tickets to the normal cart, or run a booking-only checkout.
+
+```ts
+const events = await duka.bookings.listEvents({ skip: 0 });
+const event = await duka.bookings.getEvent("summer-concert");
+const slots = await duka.bookings.getSlots("summer-concert");
+
+const ticket = event.ticket_types[0];
+const slot = slots[0];
+
+await duka.bookings.addTicketToCart({
+  event_id_or_slug: event.slug,
+  ticket_type_id: ticket.id,
+  booking_slot_id: slot.id,
+  quantity: 2,
+});
+```
+
+`bookings.addTicketToCart(...)` uses the normal cart session, so it is useful when customers can buy products and tickets together.
+
+**Booking Checkout Only:**
+
+```ts
+const booking = await duka.bookingCheckout.createSession({
+  event_id_or_slug: event.slug,
+  ticket_type_id: ticket.id,
+  booking_slot_id: slot.id,
+  quantity: 2,
+  payment_method: PaymentMethod.Mpesa,
+  customer: {
+    full_name: "John Doe",
+    email: "john@example.com",
+    phone_number: "+254700000000",
+  },
+  shipping: {
+    address_line1: "Event pickup",
+    city: "Nairobi",
+    state_province: "Nairobi",
+    country: "Kenya",
+  },
+});
+
+await duka.bookingCheckout.startMpesaPayment({
+  checkout_session_id: booking.checkout_session.id,
+  phone_number: "+254700000000",
+});
+```
+
+`bookingCheckout.createSession(...)` creates a temporary cart session just for that ticket selection, then creates a 15-minute hosted checkout session. It does not save the booking checkout session in localStorage and does not replace the normal shopping cart session.
+
+**Open the Booking Dialog:**
+
+```ts
+await duka.bookingCheckout.init({
+  event_id_or_slug: event.slug,
+  ticket_type_id: ticket.id,
+  booking_slot_id: slot.id,
+  quantity: 1,
+  onSuccess: ({ checkout_session, order }) => {
+    console.log("Booking complete", checkout_session, order);
+  },
+});
+```
+
+**Booking Checkout Methods:**
+
+```ts
+duka.bookingCheckout.createSession(params);
+duka.bookingCheckout.getSession(checkoutSessionId);
+duka.bookingCheckout.completeCashSession(checkoutSessionId);
+duka.bookingCheckout.startMpesaPayment({ checkout_session_id, phone_number });
+duka.bookingCheckout.initializePaystackPayment({ checkout_session_id, callback_url });
+duka.bookingCheckout.verifyPaystackPayment(checkoutSessionId);
+duka.bookingCheckout.init({ event_id_or_slug, ticket_type_id, booking_slot_id, quantity });
+```
+
+#### Complete Checkout Legacy API
+
+`cart.complete()` is kept for compatibility. For provider-backed payments, prefer hosted checkout sessions so TopDuka verifies payment server-side before order creation.
 
 **Basic Checkout:**
 
@@ -683,6 +887,7 @@ interface CartCompleteParams {
 ```ts
 enum PaymentMethod {
   Cash = "cash",              // Pay on delivery
+  Mpesa = "mpesa",            // M-Pesa STK Push
   Paystack = "paystack",      // Card, bank transfer, USSD
   Flutterwave = "flutterwave", // Multiple payment options
   Paypal = "paypal",          // PayPal payments

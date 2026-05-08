@@ -4,6 +4,11 @@ export interface StoreConfig {
   vat_rate: number;
   prices_include_tax: boolean;
   currency_code: string;
+  cash_enabled?: boolean;
+  mpesa_enabled?: boolean;
+  mpesa_display_name?: string;
+  paystack_enabled?: boolean;
+  paystack_public_key?: string;
   created_at: string;
 }
 
